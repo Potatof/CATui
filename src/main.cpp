@@ -33,6 +33,7 @@ void setVfoStep(int modumode, int sentFrequency);
 void updateFreqency(int refFrequency, bool up);
 void sendFrequency();
 void receiveFrequency();
+void serialRxFlush();
 
 const int P1 = 5; //    D1 	  IO, SCL    GPIO5
 const int P2 = 4; //    D2 	  IO, SDA    GPIO4
@@ -181,6 +182,24 @@ void receiveFrequency()
   }
 }
 
+void sendFrequency()
+{
+  serialRxFlush();                        // wait until RX buffer is empty
+  digitalWrite(LED, !(digitalRead(LED))); //Toggle LED Pin
+  char result[11];
+  sprintf(result, "%011d", frequency);
+  Serial.println("FA" + String(result) + ";");
+  delay(20);
+}
+
+void serialRxFlush()
+{
+  while (Serial.available() > 0)
+  {
+    char t = Serial.read();
+  }
+}
+
 void setVfoStep(int modumode, int frequency)
 {
   switch (modumode)
@@ -286,14 +305,4 @@ void updateFreqency(int refFrequency, bool up)
   }
   sendFrequency();
   readFrequency = frequency;
-}
-
-void sendFrequency()
-{
-  digitalWrite(LED, !(digitalRead(LED))); //Toggle LED Pin
-  char result[11];
-  sprintf(result, "%011d", frequency);
-  Serial.flush(); // wait until TX buffer is empty
-  Serial.println("FA" + String(result) + ";");
-  delay(20);
 }
