@@ -37,7 +37,7 @@ void serialRxFlush();
 
 const int P1 = 5; //    D1 	  IO, SCL    GPIO5
 const int P2 = 4; //    D2 	  IO, SDA    GPIO4
-const int BAUDRATE = 115200;
+const int BAUDRATE = 57600;
 const int SERIAL_TIMEOUT = 2000;
 const int FREQ_QUERY_RATE = 300;
 const int FREQ_SEND_RATE = 100;
@@ -138,7 +138,11 @@ void askForFrequency()
 /////////////////////////////////////////////////////////////////////////////////////////
 void receiveFrequency()
 {
-  if (asked && !locked)
+  if (locked)
+  {
+    serialRxFlush(); // wait until RX buffer is empty
+  }
+  else if (asked)
   {
     String rxresponse = Serial.readStringUntil(';');
     if (rxresponse.startsWith("FA"))
@@ -188,6 +192,7 @@ void sendFrequency()
   digitalWrite(LED, !(digitalRead(LED))); //Toggle LED Pin
   char result[11];
   sprintf(result, "%011d", frequency);
+  Serial.flush(); // wait until TX buffer is empty
   Serial.println("FA" + String(result) + ";");
   delay(20);
 }
