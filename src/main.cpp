@@ -18,6 +18,7 @@
 
 #include <Arduino.h>
 #include <Ticker.h>
+#include <ESP8266WiFi.h>
 
 #define LED 2 //On board LED
 
@@ -25,6 +26,7 @@ ICACHE_RAM_ATTR void askForFrequency();
 ICACHE_RAM_ATTR void updateEncoder();
 ICACHE_RAM_ATTR void updateFrequency();
 
+void initWifi();
 void initComm();
 void initGpio();
 void initTimer();
@@ -35,8 +37,14 @@ void sendFrequency();
 void receiveFrequency();
 void serialRxFlush();
 
-const int P1 = 5; //    D1 	  IO, SCL    GPIO5
-const int P2 = 4; //    D2 	  IO, SDA    GPIO4
+#ifdef USE_D1_D2
+const int P1 = 5; //    D1 	  IO, SCL     GPIO5
+const int P2 = 4; //    D2 	  IO, SDA     GPIO4
+#else
+const int P1 = 0; //    D3 	  IO, FLASH   GPIO0
+const int P2 = 2; //    D4 	  IO, BLUELED GPIO2
+#endif
+
 const int BAUDRATE = 57600;
 const int SERIAL_TIMEOUT = 2000;
 const int FREQ_QUERY_RATE = 300;
@@ -69,9 +77,18 @@ Ticker readFrequencyTicker;
 /////////////////////////////////////////////////////////////////////////////////////////
 void setup()
 {
+  initWifi();
   initComm();
   initGpio();
   initTimer();
+}
+
+void initWifi()
+{
+  WiFi.softAPdisconnect(true); // Disable default Wifi Access Point (something like 'FaryLink_xxxxxx')
+  WiFi.disconnect();
+  WiFi.mode(WIFI_OFF);
+  WiFi.forceSleepBegin();
 }
 
 void initComm()
@@ -201,7 +218,7 @@ void serialRxFlush()
 {
   while (Serial.available() > 0)
   {
-    char t = Serial.read();
+    Serial.read();
   }
 }
 
