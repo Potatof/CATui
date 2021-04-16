@@ -1,74 +1,82 @@
-//    Pin 	Function 	                    ESP-8285 Pin
-//    TX 	  TXD 	                        TXD
-//    RX 	  RXD 	                        RXD
-//    A0 	  Analog input, max 3.2V 	      A0
-//    D0 	  IO 	                          GPIO16
-//    D1 	  IO, SCL 	                    GPIO5
-//    D2 	  IO, SDA 	                    GPIO4
-//    D3 	  IO, 10k Pull-up 	            GPIO0
-//    D4 	  IO, 10k Pull-up, BUILTIN_LED 	GPIO2
-//    D5 	  IO, SCK 	                    GPIO14
-//    D6 	  IO, MISO 	                    GPIO12
-//    D7 	  IO, MOSI 	                    GPIO13
-//    D8 	  IO, 10k Pull-down, SS 	      GPIO15
+//
+// ---------------------------------------------------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------------------------------------------------
+//  ESP8266 best pins to use:
+//    Pin 	Function 	                    ESP-8285 Pin      Notes
+//    TX 	  TXD 	                        TXD, GPIO1        HIGH at boot - debug output at boot, boot fails if pulled LOW
+//    RX 	  RXD 	                        RXD, GPIO3        HIGH at boot
+//    A0 	  Analog input, max 3.2V 	      A0                Analog Input
+//    D0 	  IO 	                          GPIO16            HIGH at boot - used to wake up from deep sleep
+//    D1 	  IO, SCL 	                    GPIO5             Often used as SCL (I2C)
+//    D2 	  IO, SDA 	                    GPIO4             Often used as SDA (I2C)
+//    D3 	  IO, 10k Pull-up 	            GPIO0             Connected to FLASH button, boot fails if pulled LOW
+//    D4 	  IO, 10k Pull-up, BUILTIN_LED 	GPIO2             HIGH at boot - connected to on - board LED, boot fails if pulled LOW
+//    D5 	  IO, SCK 	                    GPIO14            SPI (SCLK)
+//    D6 	  IO, MISO 	                    GPIO12            SPI (MISO)
+//    D7 	  IO, MOSI 	                    GPIO13            SPI (MOSI)
+//    D8 	  IO, 10k Pull-down, SS 	      GPIO15            Pulled to GND - SPI(CS) Boot fails if pulled HIGH
 //    G 	  Ground 	                      GND
 //    5V 	  5V 	                          -
 //    3V3 	3.3V 	                        3.3V
 //    RST 	Reset 	                      RST
+// ---------------------------------------------------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------------------------------------------------
+//
 
 #include <Arduino.h>
 #include <Ticker.h>
 #include <ESP8266WiFi.h>
 
-#define LED 2 //On board LED
+//#define USE_PULLED_UP_IO // use pulluped IO
 
 ICACHE_RAM_ATTR void askForFrequency();
 ICACHE_RAM_ATTR void updateEncoder();
 ICACHE_RAM_ATTR void updateFrequency();
 
-void initWifi();
+void askForFrequency();
 void initComm();
 void initGpio();
 void initTimer();
-void askForFrequency();
+void initWifi();
+void receiveFrequency();
+void sendFrequency();
+void serialRxFlush();
+void serialTxFlush(String command);
 void setVfoStep(int modumode, int sentFrequency);
 void updateFreqency(int refFrequency, bool up);
-void sendFrequency();
-void receiveFrequency();
-void serialRxFlush();
 
-#ifdef USE_D1_D2
-const int P1 = 5; //    D1 	  IO, SCL     GPIO5
-const int P2 = 4; //    D2 	  IO, SDA     GPIO4
+#ifdef USE_PULLED_UP_IO
+const int P1 = 0; //    D3 	  IO, FLASH   GPIO0 -> Pulled Up but no more LED...
+const int P2 = 2; //    D4 	  IO, BLUELED GPIO2 -> Pulled Up but boot can crash...
 #else
-const int P1 = 0; //    D3 	  IO, FLASH   GPIO0
-const int P2 = 2; //    D4 	  IO, BLUELED GPIO2
+#define LED 2 //On board LED
+const int P1 = 5; //    D1 	  IO, SCL     GPIO5 -> pullup resistor to vcc needed
+const int P2 = 4; //    D2 	  IO, SDA     GPIO4 -> pullup resistor to vcc needed
 #endif
 
+const int AIR_CHANNEL = 25000;
+const int AIR_SUB_CHANNEL = 8333;
 const int BAUDRATE = 57600;
-const int SERIAL_TIMEOUT = 2000;
+const int DEFAULT_FREQ = 127000000;
+const int DEFAULT_VFO_STEP = 1000;
 const int FREQ_QUERY_RATE = 300;
 const int FREQ_SEND_RATE = 100;
-const int DEFAULT_FREQ = 127000000;
-const int AIR_SUB_CHANNEL = 8333;
-const int AIR_CHANNEL = 25000;
-const int DEFAULT_VFO_STEP = 1000;
-const int ROTARY_STEP = 100;
-
-const int LOW_AIR_BAND = 118000000;
 const int HIGH_AIR_BAND = 140000000;
-const int LOW_FM_BAND = 88000000;
 const int HIGH_FM_BAND = 108000000;
+const int LOW_AIR_BAND = 118000000;
+const int LOW_FM_BAND = 88000000;
+const int ROTARY_STEP = 100;
+const int SERIAL_TIMEOUT = 2000;
 
-volatile int lastEncoded = 0;
-volatile int frequency = DEFAULT_FREQ;
-volatile int readFrequency = DEFAULT_FREQ;
-volatile int vfoStep = DEFAULT_VFO_STEP;
-volatile int subFreq = 0;
-volatile int modumode = 5; // AM
 volatile bool asked = false;
 volatile bool asktog = false;
 volatile bool locked = false;
+volatile int frequency = DEFAULT_FREQ;
+volatile int lastEncoded = 0;
+volatile int modumode = 5; // AM
+volatile int readFrequency = DEFAULT_FREQ;
+volatile int subFreq = 0;
+volatile int vfoStep = DEFAULT_VFO_STEP;
 
 Ticker readFrequencyTicker;
 
@@ -99,17 +107,20 @@ void initComm()
   Serial.begin(BAUDRATE, SERIAL_8N1);
   while (!Serial)
   {
+    yield();
     delay(10); // wait for serial port to connect. Needed for native USB port only
   }
 }
 
 void initGpio()
 {
+#ifndef USE_PULLED_UP_IO
   pinMode(LED, OUTPUT);
+#endif
   //digitalWrite(P1, HIGH); //turn pullup resistor on
   //digitalWrite(P2, HIGH); //turn pullup resistor on
-  pinMode(P1, INPUT);
-  pinMode(P2, INPUT);
+  pinMode(P1, INPUT_PULLUP);
+  pinMode(P2, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(P1), updateEncoder, CHANGE);
   attachInterrupt(digitalPinToInterrupt(P2), updateEncoder, CHANGE);
 }
@@ -125,6 +136,7 @@ void initTimer()
 void loop()
 {
   receiveFrequency();
+  yield(); // Do the rest
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -135,16 +147,16 @@ void askForFrequency()
   if (!asked && !locked)
   {
     asked = true;
+#ifndef USE_PULLED_UP_IO
     digitalWrite(LED, !(digitalRead(LED))); //Toggle LED Pin
+#endif
     if (!asktog)
     {
-      Serial.flush();        // wait until TX buffer is empty
-      Serial.println("FA;"); // ask for current frequency
+      serialTxFlush("FA;"); // ask for current frequency
     }
     else
     {
-      Serial.flush();        // wait until TX buffer is empty
-      Serial.println("MD;"); // ask for modulation mode
+      serialTxFlush("MD;"); // ask for modulation mode
     }
     asktog = !asktog;
   }
@@ -205,13 +217,21 @@ void receiveFrequency()
 
 void sendFrequency()
 {
-  serialRxFlush();                        // wait until RX buffer is empty
+  serialRxFlush(); // wait until RX buffer is empty
+#ifndef USE_PULLED_UP_IO
   digitalWrite(LED, !(digitalRead(LED))); //Toggle LED Pin
+#endif
   char result[11];
   sprintf(result, "%011d", frequency);
+  serialTxFlush("FA" + String(result) + ";"); // Send new frequency
+}
+
+void serialTxFlush(String command)
+{
   Serial.flush(); // wait until TX buffer is empty
-  Serial.println("FA" + String(result) + ";");
-  delay(20);
+  delay(5);
+  Serial.println(command);
+  delay(5);
 }
 
 void serialRxFlush()
