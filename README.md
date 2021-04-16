@@ -5,5 +5,5 @@ It works fine with SDR Console software
 
 Simple Prototype:
 ![alt text](https://github.com/Potatof/cathui/blob/master/docs/proto.jpg)
-The rotary encoder has an independent power supply (7V) because it does not work with USB vcc.
+The rotary encoder has an independent power supply (7V) because it does not work with USB 5V vcc.
 Two pull-up resistors have been added from the VCC to the GPIO being used.
