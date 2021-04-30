@@ -3,7 +3,7 @@ A hardware user interface to control CAT compatible radio software such as 'SDR 
 
 Simple Prototype:
 ![alt text](https://github.com/Potatof/cathui/blob/master/docs/proto.jpg)
-The rotary encoder has an independent power supply (7V or more but bellow ) because it does not work with USB 5V vcc.
+The rotary encoder has an independent power supply (7V) because it does not work with USB 5V vcc.
 Two pull-up resistors have been added from the VCC to the GPIO being used.
 It works fine at 57600 bds with SDR Console software.
 
