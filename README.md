@@ -7,3 +7,6 @@ The rotary encoder has an independent power supply (7V) because it does not work
 Two pull-up resistors have been added from the VCC to the GPIO being used.
 It works fine at 57600 bds with SDR Console software.
 
+![alt text](https://github.com/Potatof/cathui/blob/master/docs/final.jpg)
+
+![alt text](https://github.com/Potatof/cathui/blob/master/docs/finalzoom.jpg)
