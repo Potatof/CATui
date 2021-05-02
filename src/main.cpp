@@ -223,7 +223,7 @@ void sendFrequency()
 #endif
   char result[11];
   sprintf(result, "%011d", frequency);
-  serialTxFlush("FA" + String(result) + ";"); // Send new frequency
+  serialTxFlush("FA" + String(result) + ";;"); // Send new frequency
 }
 
 void serialTxFlush(String command)
